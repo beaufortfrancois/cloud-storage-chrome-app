@@ -1,17 +1,21 @@
-var bucket = 'chromeos-wallpaper-public';
-var bucket = 'fbeaufort-test';
+var STORAGE_BASE_URL = 'https://www.googleapis.com/storage/v1/';
 
-function getObjectsList(bucket, prefix, successCallback, errorCallback) {
+var bucket = 'chromeos-wallpaper-public';
+//var bucket = 'fbeaufort-test';
+
+function getAuthToken(successCallback, errorCallback) {
   chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
     if (chrome.runtime.lastError) {
       errorCallback();
-      return;
+    } else {
+      successCallback(token);
     }
+  });
+}
+
+function request(url, successCallback, errorCallback) {
+  getAuthToken(function(token) {
     var xhr = new XMLHttpRequest();
-    var url = 'https://www.googleapis.com/storage/v1/b/' + bucket + '/o' +
-              '?delimiter=%2F' +
-              '&fields=' + encodeURIComponent('items(name,size,updated,contentType),prefixes') +
-              '&prefix=' + (prefix ? encodeURIComponent(prefix) : '');
     xhr.open('GET', url);
     xhr.onloadend = function() {
       if (xhr.status === 200) {
@@ -23,7 +27,21 @@ function getObjectsList(bucket, prefix, successCallback, errorCallback) {
     xhr.setRequestHeader('Authorization', 'Bearer ' + token);
     xhr.responseType = 'json';
     xhr.send();
-  });
+  }, errorCallback);
+}
+
+function getObjectMediaLink(bucket, object, successCallback, errorCallback) {
+  var url = STORAGE_BASE_URL + 'b/' + bucket + '/o/' + encodeURIComponent(object) +
+            '?fields=mediaLink';
+  request(url, successCallback, errorCallback);
+}
+
+function getObjectsList(bucket, prefix, successCallback, errorCallback) {
+  var url = STORAGE_BASE_URL + 'b/' + bucket + '/o' +
+            '?delimiter=%2F' +
+            '&fields=' + encodeURIComponent('items(name,size,updated,contentType),prefixes') +
+            '&prefix=' + (prefix ? encodeURIComponent(prefix) : '');
+  request(url, successCallback, errorCallback);
 }
 
 function onGetMetadataRequested(options, onSuccess, onError) {
@@ -118,45 +136,36 @@ function onOpenFileRequested(options, onSuccess, onError) {
   if (options.mode != 'READ' || options.create) {
     onError('INVALID_OPERATION');
   } else {
-    chrome.storage.local.get(null, function(metadata) {
-      openedFiles[options.requestId] = options.filePath;
-      onSuccess();
-    });
+    openedFiles[options.requestId] = options.filePath;
+    onSuccess();
   }
 }
 
 function onReadFileRequested(options, onSuccess, onError) {
-  onError('SECRUITY');
-  return;
   console.log('onReadFileRequested', options);
-  chrome.storage.local.get(null, function(localMetadata) {
-    var filePath = openedFiles[options.openRequestId];
-    if (!filePath) {
-      onError('SECURITY');
-      return;
-    }
 
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', localMetadata[filePath].url);
-    xhr.setRequestHeader('Range', 'bytes=' + options.offset + '-' + (options.length + options.offset - 1));
-    xhr.responseType = 'arraybuffer';
-    xhr.onload = function() {
-      if (xhr.readyState === 4 && xhr.status === 206) {
-        onSuccess(xhr.response, false /* last call */);
-        if (localMetadata[filePath].url !== xhr.responseURL) {
-          var metadata = {};
-          metadata[filePath] = localMetadata[filePath];
-          metadata[filePath].url = xhr.responseURL;
-          chrome.storage.local.set(metadata);
+  var filePath = openedFiles[options.openRequestId].substr(1);
+  getObjectMediaLink(bucket, filePath, function(response) {
+    getAuthToken(function(token) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', response.mediaLink);
+      xhr.responseType = 'arraybuffer';
+      xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+      xhr.setRequestHeader('Range', 'bytes=' + options.offset + '-' +
+                                    (options.length + options.offset - 1));
+      xhr.onloadend = function() {
+        if (xhr.status === 206) {
+          onSuccess(xhr.response, false /* last call */);
+        } else {
+          onError('NOT_FOUND');
         }
-      } else {
-        onError('NOT_FOUND');
-      }
-    };
-    xhr.onerror = function() {
-      onError('NOT_FOUND');
-    };
-    xhr.send();
+      };
+      xhr.send();
+    }, function() {
+      onError('ACCESS_DENIED');
+    });
+  }, function() {
+    onError('NOT_FOUND');
   });
 }
 
