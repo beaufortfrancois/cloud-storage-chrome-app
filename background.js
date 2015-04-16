@@ -8,10 +8,10 @@ function getObjectsList(bucket, prefix, successCallback, errorCallback) {
       return;
     }
     var xhr = new XMLHttpRequest();
-    var url = 'https://www.googleapis.com/storage/v1/b/' + bucket +
-              '/o?delimiter=%2F' +
-              '&fields=items(name%2Csize%2Cupdated%2CcontentType)%2Cprefixes' +
-              '&prefix=' + (prefix ? encodeURI(prefix) : '');
+    var url = 'https://www.googleapis.com/storage/v1/b/' + bucket + '/o' +
+              '?delimiter=%2F' +
+              '&fields=' + encodeURIComponent('items(name,size,updated,contentType),prefixes') +
+              '&prefix=' + (prefix ? encodeURIComponent(prefix) : '');
     xhr.open('GET', url);
     xhr.onloadend = function() {
       if (xhr.status === 200) {
@@ -39,9 +39,13 @@ function onGetMetadataRequested(options, onSuccess, onError) {
     if (response.items) {
       for (var item of response.items) {
         if (item.name === prefix) {
+          var entryName = item.name;
+          if (entryName.lastIndexOf('/') >= 0) {
+            entryName = entryName.substring(entryName.lastIndexOf('/')+1);
+          }
           var entry = {
             'isDirectory': false,
-            'name': item.name.substr(prefix.length),
+            'name': entryName,
             'size': parseInt(item.size, 10),
             'modificationTime': new Date(item.updated),
             'mimeType': item.contentType
