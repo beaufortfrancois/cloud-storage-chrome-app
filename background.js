@@ -1,7 +1,5 @@
-var STORAGE_BASE_URL = 'https://www.googleapis.com/storage/v1/';
-
 var bucket = 'chromeos-wallpaper-public';
-//var bucket = 'fbeaufort-test';
+var bucket = 'fbeaufort-test';
 
 function getAuthToken(successCallback, errorCallback) {
   chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
@@ -31,13 +29,13 @@ function request(url, successCallback, errorCallback) {
 }
 
 function getObjectMediaLink(bucket, object, successCallback, errorCallback) {
-  var url = STORAGE_BASE_URL + 'b/' + bucket + '/o/' + encodeURIComponent(object) +
-            '?fields=mediaLink';
+  var url = 'https://www.googleapis.com/storage/v1/b/' + bucket +
+            '/o/' + encodeURIComponent(object) + '?fields=mediaLink';
   request(url, successCallback, errorCallback);
 }
 
 function getObjectsList(bucket, prefix, successCallback, errorCallback) {
-  var url = STORAGE_BASE_URL + 'b/' + bucket + '/o' +
+  var url = 'https://www.googleapis.com/storage/v1/b/' + bucket + '/o/' +
             '?delimiter=%2F' +
             '&fields=' + encodeURIComponent('items(name,size,updated,contentType),prefixes') +
             '&prefix=' + (prefix ? encodeURIComponent(prefix) : '');
@@ -48,7 +46,12 @@ function onGetMetadataRequested(options, onSuccess, onError) {
   console.log('onGetMetadataRequested', options.entryPath);
 
   if (options.entryPath === '/') {
-    onSuccess(rootEntry);
+    onSuccess({
+      'isDirectory': true,
+      'name': '', // Must be empty string.
+      'size': 0,
+      'modificationTime': new Date()
+    });
     return;
   }
 
@@ -181,8 +184,16 @@ function onCloseFileRequested(options, onSuccess, onError) {
 }
 
 function onUnmountRequested(options, onSuccess, onError) {
-  onSuccess();
+  chrome.fileSystemProvider.unmount({ fileSystemId: options.fileSystemId },
+      function() {
+    if (chrome.runtime.lastError) {
+      onError('FAILED');
+    } else {
+      onSuccess();
+    }
+  });
 }
+
 chrome.fileSystemProvider.onGetMetadataRequested.addListener(onGetMetadataRequested);
 chrome.fileSystemProvider.onReadDirectoryRequested.addListener(onReadDirectoryRequested);
 chrome.fileSystemProvider.onOpenFileRequested.addListener(onOpenFileRequested);
@@ -190,16 +201,8 @@ chrome.fileSystemProvider.onReadFileRequested.addListener(onReadFileRequested);
 chrome.fileSystemProvider.onCloseFileRequested.addListener(onCloseFileRequested);
 chrome.fileSystemProvider.onUnmountRequested.addListener(onUnmountRequested);
 
-// Save root metadata.
-var rootEntry = {
-  isDirectory: true,
-  name: '', // Must be empty string.
-  size: 0,
-  modificationTime: new Date()
-};
-
-// Mount the file system.
-var options = { fileSystemId: bucket, displayName: 'gs://'+bucket };
+// TODO: Pick user selected buckets.
+var options = { fileSystemId: bucket, displayName: 'gs://' + bucket };
 chrome.fileSystemProvider.mount(options, function() {
   if (chrome.runtime.lastError) {
     console.error(chrome.runtime.lastError);
