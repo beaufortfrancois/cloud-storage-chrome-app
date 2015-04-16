@@ -12,9 +12,7 @@
   },
   "permissions": [
     "identity",
-    "fileSystemProvider",
-    "https://www.googleapis.com/*",
-    "<all_urls>"
+    "fileSystemProvider"
   ],
   "oauth2": {
     "client_id": "1019873396808-onql6al5ijtivb6ngmgboasifbg5r2hs.apps.googleusercontent.com",
