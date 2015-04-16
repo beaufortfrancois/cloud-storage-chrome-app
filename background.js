@@ -1,92 +1,107 @@
-var bucketName = 'chromeos-wallpaper-public';
-var bucketName = 'fbeaufort-test';
+var bucket = 'chromeos-wallpaper-public';
+var bucket = 'fbeaufort-test';
 
-function onGetMetadataRequested(options, onSuccess, onError) {
-  console.log('onGetMetadataRequested', options.entryPath);
-  
-  if (options.entryPath === '/') {
-    onSuccess(rootEntry);
-    return;
-  }
-  
+function getObjectsList(bucket, prefix, successCallback, errorCallback) {
   chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
-    var prefix = options.entryPath.substr(1);
-    xhr = new XMLHttpRequest();
-    xhr.open('GET', 'https://www.googleapis.com/storage/v1/b/' + bucketName + 
-                    '/o?prefix=' + encodeURI(prefix));
-    xhr.onload = function(result) {
-
-      for (var item of xhr.response.items) {
-        if (item.name === options.entryPath) {
-          var entry = {
-            'isDirectory': false,
-            'name': item.name.substr(prefix.length),
-            'size': parseInt(item.size),
-            'modificationTime': new Date(item.updated),
-            'mimeType': item.contentType
-          };
-          onSuccess(entry);
-          return;
-        }
+    if (chrome.runtime.lastError) {
+      errorCallback();
+      return;
+    }
+    var xhr = new XMLHttpRequest();
+    var url = 'https://www.googleapis.com/storage/v1/b/' + bucket +
+              '/o?delimiter=%2F' +
+              '&fields=items(name%2Csize%2Cupdated%2CcontentType)%2Cprefixes' +
+              '&prefix=' + (prefix ? encodeURI(prefix) : '');
+    xhr.open('GET', url);
+    xhr.onloadend = function() {
+      if (xhr.status === 200) {
+        successCallback(xhr.response);
+      } else {
+        errorCallback();
       }
-      // We always return a directory...
-      var directory = {
-        'isDirectory': true,
-        'name': prefix,
-        'size': 0,
-        'modificationTime': new Date()
-      };
-      console.log('onGetMetadataRequested directory', directory);
-      onSuccess(directory);
-    };
+    }
     xhr.setRequestHeader('Authorization', 'Bearer ' + token);
     xhr.responseType = 'json';
     xhr.send();
   });
 }
 
-function onReadDirectoryRequested(options, onSuccess, onError) {
-  console.log('onReadDirectoryRequested', options);
-  
-  chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
-    var prefix = options.directoryPath.substr(1);
-    xhr = new XMLHttpRequest();
-    xhr.open('GET', 'https://www.googleapis.com/storage/v1/b/' + bucketName +
-                    '/o?prefix=' + encodeURI(prefix));
-    xhr.onload = function(result) {
-      var entries = [];
-      var directories = [];
-      console.log(xhr.response);
-      for (var item of xhr.response.items) {
-        item.name = item.name.substr(prefix.length); // Remove prefix to ease things
-        if (item.name.indexOf('/') >= 0) {
-          var directoryName = item.name.substr(0, item.name.indexOf('/'));
-          console.log(item.name);
-          if (directories.indexOf(directoryName) === -1) {
-            entries.push({
-              'isDirectory': true,
-              'name': directoryName,
-              'size': 0,
-              'modificationTime': new Date()
-            });
-            directories.push(directoryName);
-          }
-          continue;
+function onGetMetadataRequested(options, onSuccess, onError) {
+  console.log('onGetMetadataRequested', options.entryPath);
+
+  if (options.entryPath === '/') {
+    onSuccess(rootEntry);
+    return;
+  }
+
+  var prefix = options.entryPath.substr(1);
+  getObjectsList(bucket, prefix, function(response) {
+    if (response.items) {
+      for (var item of response.items) {
+        if (item.name === prefix) {
+          var entry = {
+            'isDirectory': false,
+            'name': item.name.substr(prefix.length),
+            'size': parseInt(item.size, 10),
+            'modificationTime': new Date(item.updated),
+            'mimeType': item.contentType
+          };
+          console.log('onSuccess(entry)', entry);
+          onSuccess(entry);
+          return;
         }
+      }
+    } else if (response.prefixes) {
+      var directory = {
+        'isDirectory': true,
+        'name': prefix,
+        'size': 0,
+        'modificationTime': new Date()
+      };
+      console.log('onSuccess(directory)', directory);
+      onSuccess(directory);
+    } else {
+      onError('FAILED');
+    }
+  }, function() {
+    onError('FAILED');
+  });
+}
+
+function onReadDirectoryRequested(options, onSuccess, onError) {
+  console.log('onReadDirectoryRequested', options.directoryPath);
+
+  var prefix = '';
+  if (options.directoryPath !== '/') {
+    prefix = options.directoryPath.substr(1) + '/';
+  }
+  getObjectsList(bucket, prefix, function(response) {
+    var entries = [];
+    if (response.items) {
+      for (var item of response.items) {
         entries.push({
           'isDirectory': false,
-          'name': item.name,
-          'size': parseInt(item.size),
+          'name': item.name.substr(prefix.length),
+          'size': parseInt(item.size, 10),
           'modificationTime': new Date(item.updated),
           'mimeType': item.contentType
         });
       }
-      console.log(entries);
-      onSuccess(entries, false /* hasMore */);
-    };
-    xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-    xhr.responseType = 'json';
-    xhr.send();
+    }
+    if (response.prefixes) {
+      for (var item of response.prefixes) {
+        entries.push({
+          'isDirectory': true,
+          'name': item.substr(prefix.length).slice(0, -1),
+          'size': 0,
+          'modificationTime': new Date()
+        });
+      }
+    }
+    console.log('onReadDirectoryRequested', entries);
+    onSuccess(entries, false /* hasMore */);
+  }, function() {
+    onError('FAILED');
   });
 }
 
@@ -171,7 +186,9 @@ var rootEntry = {
 };
 
 // Mount the file system.
-var options = { fileSystemId: bucketName+Math.random(), displayName: 'gs://'+bucketName };
+var options = { fileSystemId: bucket, displayName: 'gs://'+bucket };
 chrome.fileSystemProvider.mount(options, function() {
-  console.log(chrome.runtime.lastError);
+  if (chrome.runtime.lastError) {
+    console.error(chrome.runtime.lastError);
+  }
 });
