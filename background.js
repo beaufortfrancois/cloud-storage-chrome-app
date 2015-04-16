@@ -1,6 +1,3 @@
-var bucket = 'chromeos-wallpaper-public';
-var bucket = 'fbeaufort-test';
-
 function getAuthToken(successCallback, errorCallback) {
   chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
     if (chrome.runtime.lastError) {
@@ -55,6 +52,7 @@ function onGetMetadataRequested(options, onSuccess, onError) {
     return;
   }
 
+  var bucket = options.fileSystemId;
   var prefix = options.entryPath.substr(1);
   getObjectsList(bucket, prefix, function(response) {
     if (response.items) {
@@ -96,6 +94,7 @@ function onGetMetadataRequested(options, onSuccess, onError) {
 function onReadDirectoryRequested(options, onSuccess, onError) {
   console.log('onReadDirectoryRequested', options.directoryPath);
 
+  var bucket = options.fileSystemId;
   var prefix = '';
   if (options.directoryPath !== '/') {
     prefix = options.directoryPath.substr(1) + '/';
@@ -147,6 +146,7 @@ function onOpenFileRequested(options, onSuccess, onError) {
 function onReadFileRequested(options, onSuccess, onError) {
   console.log('onReadFileRequested', options);
 
+  var bucket = options.fileSystemId;
   var filePath = openedFiles[options.openRequestId].substr(1);
   getObjectMediaLink(bucket, filePath, function(response) {
     getAuthToken(function(token) {
@@ -201,10 +201,14 @@ chrome.fileSystemProvider.onReadFileRequested.addListener(onReadFileRequested);
 chrome.fileSystemProvider.onCloseFileRequested.addListener(onCloseFileRequested);
 chrome.fileSystemProvider.onUnmountRequested.addListener(onUnmountRequested);
 
+function mount(bucket) {
+  var options = { fileSystemId: bucket, displayName: 'gs://' + bucket };
+  chrome.fileSystemProvider.mount(options, function() {
+    if (chrome.runtime.lastError) {
+      console.error(chrome.runtime.lastError);
+    }
+  });
+}
+
 // TODO: Pick user selected buckets.
-var options = { fileSystemId: bucket, displayName: 'gs://' + bucket };
-chrome.fileSystemProvider.mount(options, function() {
-  if (chrome.runtime.lastError) {
-    console.error(chrome.runtime.lastError);
-  }
-});
+mount('fbeaufort-test');
