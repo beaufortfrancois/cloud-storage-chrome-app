@@ -17,6 +17,11 @@ function request(url, successCallback, errorCallback) {
     xhr.onloadend = function() {
       if (xhr.status === 200) {
         successCallback(xhr.response);
+      } else if (xhr.status === 401) {
+        // Removed cached token and try again.
+        chrome.identity.removeCachedAuthToken({ token: token }, function() {
+          request(url, successCallback, errorCallback);
+        });
       } else {
         errorCallback();
       }
