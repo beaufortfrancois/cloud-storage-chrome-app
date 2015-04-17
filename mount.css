@@ -1,0 +1,61 @@
+::-webkit-scrollbar {
+    width: 0px !important;
+}
+
+body {
+  margin: 0px;
+  background-color: #4182fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  flex-direction: column;
+}
+
+#form {
+  flex-direction: row;
+  display: flex;
+}
+
+#lastBuckets {
+  width: 300px;
+  margin-top: 12px;
+  max-height: 64px;
+  overflow: overlay;
+}
+
+input, button {
+  margin: 0 auto;
+  display: block;
+  border: 0;
+  outline: none;
+}
+
+input {
+  border-radius: 2px;
+  width: 240px;
+  line-height: 38px;
+  border-bottom: 1px solid #555;
+  padding-left: 12px;
+}
+
+span {
+  display: block;
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, .7);
+}
+
+button {
+  border-radius: 0 2px 2px 0;
+  font-weight: bold;
+  border-bottom: 1px solid #555;
+  padding: 1px 12px;
+  background-color: #444;
+  color: white;
+  transition: background-color .1s;
+  text-shadow: 1px 1px 0 #333;
+}
+
+button:active {
+  background-color: #888;
+}

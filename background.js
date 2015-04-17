@@ -1,3 +1,4 @@
+// Helper function to get an authentication token.
 function getAuthToken(successCallback, errorCallback) {
   chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
     if (chrome.runtime.lastError) {
@@ -8,6 +9,7 @@ function getAuthToken(successCallback, errorCallback) {
   });
 }
 
+// Helper function to send an authorized request and receive a JSON response.
 function request(url, successCallback, errorCallback) {
   getAuthToken(function(token) {
     var xhr = new XMLHttpRequest();
@@ -25,12 +27,14 @@ function request(url, successCallback, errorCallback) {
   }, errorCallback);
 }
 
+// Get cloud storage object media link URL.
 function getObjectMediaLink(bucket, object, successCallback, errorCallback) {
   var url = 'https://www.googleapis.com/storage/v1/b/' + bucket +
             '/o/' + encodeURIComponent(object) + '?fields=mediaLink';
   request(url, successCallback, errorCallback);
 }
 
+// Get cloud storage object list that starts with a prefix.
 function getObjectsList(bucket, prefix, successCallback, errorCallback) {
   var url = 'https://www.googleapis.com/storage/v1/b/' + bucket + '/o/' +
             '?delimiter=%2F' +
@@ -43,6 +47,7 @@ function onGetMetadataRequested(options, onSuccess, onError) {
   console.log('onGetMetadataRequested', options.entryPath);
 
   if (options.entryPath === '/') {
+    // Return static root entry.
     onSuccess({
       'isDirectory': true,
       'name': '', // Must be empty string.
@@ -53,8 +58,9 @@ function onGetMetadataRequested(options, onSuccess, onError) {
   }
 
   var bucket = options.fileSystemId;
-  var prefix = options.entryPath.substr(1);
+  var prefix = options.entryPath.substr(1); // Removes starting slash.
   getObjectsList(bucket, prefix, function(response) {
+    var entry = null;
     if (response.items) {
       for (var item of response.items) {
         if (item.name === prefix) {
@@ -62,29 +68,30 @@ function onGetMetadataRequested(options, onSuccess, onError) {
           if (entryName.lastIndexOf('/') >= 0) {
             entryName = entryName.substring(entryName.lastIndexOf('/')+1);
           }
-          var entry = {
+          // Return a file entry.
+          entry = {
             'isDirectory': false,
             'name': entryName,
             'size': parseInt(item.size, 10),
             'modificationTime': new Date(item.updated),
             'mimeType': item.contentType
           };
-          console.log('onSuccess(entry)', entry);
-          onSuccess(entry);
-          return;
+          break;
         }
       }
     } else if (response.prefixes) {
-      var directory = {
+      // Return a directory entry.
+      entry = {
         'isDirectory': true,
         'name': prefix,
         'size': 0,
         'modificationTime': new Date()
       };
-      console.log('onSuccess(directory)', directory);
-      onSuccess(directory);
+    }
+    if (entry) {
+      onSuccess(entry);
     } else {
-      onError('FAILED');
+      onError('NOT_FOUND');
     }
   }, function() {
     onError('FAILED');
@@ -102,6 +109,7 @@ function onReadDirectoryRequested(options, onSuccess, onError) {
   getObjectsList(bucket, prefix, function(response) {
     var entries = [];
     if (response.items) {
+      // Add all files in this directory.
       for (var item of response.items) {
         entries.push({
           'isDirectory': false,
@@ -113,6 +121,7 @@ function onReadDirectoryRequested(options, onSuccess, onError) {
       }
     }
     if (response.prefixes) {
+      // Add all directories in this directory.
       for (var item of response.prefixes) {
         entries.push({
           'isDirectory': true,
@@ -122,8 +131,7 @@ function onReadDirectoryRequested(options, onSuccess, onError) {
         });
       }
     }
-    console.log('onReadDirectoryRequested', entries);
-    onSuccess(entries, false /* hasMore */);
+    onSuccess(entries, false /* last call */);
   }, function() {
     onError('FAILED');
   });
@@ -201,14 +209,11 @@ chrome.fileSystemProvider.onReadFileRequested.addListener(onReadFileRequested);
 chrome.fileSystemProvider.onCloseFileRequested.addListener(onCloseFileRequested);
 chrome.fileSystemProvider.onUnmountRequested.addListener(onUnmountRequested);
 
-function mount(bucket) {
-  var options = { fileSystemId: bucket, displayName: 'gs://' + bucket };
-  chrome.fileSystemProvider.mount(options, function() {
-    if (chrome.runtime.lastError) {
-      console.error(chrome.runtime.lastError);
-    }
+chrome.app.runtime.onLaunched.addListener(function() {
+  chrome.app.window.create('mount.html', {
+    id: 'mount-window',
+    resizable: false,
+    frame: { color: "#4182fa" },
+    innerBounds: { width: 420, height: 200, }
   });
-}
-
-// TODO: Pick user selected buckets.
-mount('fbeaufort-test');
+});
