@@ -172,6 +172,9 @@ function onReadFileRequested(options, onSuccess, onError) {
       xhr.onloadend = function() {
         if (xhr.status === 206) {
           onSuccess(xhr.response, false /* last call */);
+        } else if (xhr.status === 416) {
+          // There's nothing more...
+          onSuccess(new ArrayBuffer(), false /* last call */);
         } else {
           onError('NOT_FOUND');
         }
@@ -197,6 +200,7 @@ function onCloseFileRequested(options, onSuccess, onError) {
 }
 
 function onUnmountRequested(options, onSuccess, onError) {
+  console.log('onUnmountRequested', options);
   chrome.fileSystemProvider.unmount({ fileSystemId: options.fileSystemId },
       function() {
     if (chrome.runtime.lastError) {
