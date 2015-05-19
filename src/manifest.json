@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Cloud Storage",
   "description": "Access Cloud Storage Buckets in the Files App",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "minimum_chrome_version": "42",
 
   "icons": {
