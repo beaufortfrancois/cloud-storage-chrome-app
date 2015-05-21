@@ -3,7 +3,7 @@
   "name": "Cloud Storage",
   "description": "Access Cloud Storage Buckets in the Files App",
   "version": "0.0.3",
-  "minimum_chrome_version": "42",
+  "minimum_chrome_version": "44.0.2403.5",
 
   "icons": {
     "16": "assets/icon_16.png",
@@ -16,6 +16,8 @@
     "storage"
   ],
   "file_system_provider_capabilities": {
+    "configurable": false,
+    "multiple_mounts": true,
     "source": "network"
   },
   "oauth2": {

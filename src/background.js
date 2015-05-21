@@ -201,13 +201,22 @@ function onCloseFileRequested(options, onSuccess, onError) {
 
 function onUnmountRequested(options, onSuccess, onError) {
   console.log('onUnmountRequested', options);
-  chrome.fileSystemProvider.unmount({ fileSystemId: options.fileSystemId },
-      function() {
-    if (chrome.runtime.lastError) {
-      onError('FAILED');
-    } else {
-      onSuccess();
-    }
+  onSuccess();
+  chrome.fileSystemProvider.unmount({ fileSystemId: options.fileSystemId });
+}
+
+function onMountRequested(onSuccess, onError) {
+  console.log('onMountRequested');
+  onSuccess();
+  showMountWindow();
+}
+
+function showMountWindow() {
+  chrome.app.window.create('mount.html', {
+    id: 'mount-window',
+    resizable: false,
+    frame: { color: "#4182fa" },
+    innerBounds: { width: 420, height: 200, }
   });
 }
 
@@ -217,12 +226,6 @@ chrome.fileSystemProvider.onOpenFileRequested.addListener(onOpenFileRequested);
 chrome.fileSystemProvider.onReadFileRequested.addListener(onReadFileRequested);
 chrome.fileSystemProvider.onCloseFileRequested.addListener(onCloseFileRequested);
 chrome.fileSystemProvider.onUnmountRequested.addListener(onUnmountRequested);
+chrome.fileSystemProvider.onMountRequested.addListener(onMountRequested);
 
-chrome.app.runtime.onLaunched.addListener(function() {
-  chrome.app.window.create('mount.html', {
-    id: 'mount-window',
-    resizable: false,
-    frame: { color: "#4182fa" },
-    innerBounds: { width: 420, height: 200, }
-  });
-});
+chrome.app.runtime.onLaunched.addListener(showMountWindow);
