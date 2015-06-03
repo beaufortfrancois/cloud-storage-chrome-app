@@ -226,6 +226,6 @@ chrome.fileSystemProvider.onOpenFileRequested.addListener(onOpenFileRequested);
 chrome.fileSystemProvider.onReadFileRequested.addListener(onReadFileRequested);
 chrome.fileSystemProvider.onCloseFileRequested.addListener(onCloseFileRequested);
 chrome.fileSystemProvider.onUnmountRequested.addListener(onUnmountRequested);
-chrome.fileSystemProvider.onMountRequested.addListener(onMountRequested);
+chrome.fileSystemProvider.onMountRequested && chrome.fileSystemProvider.onMountRequested.addListener(onMountRequested);
 
 chrome.app.runtime.onLaunched.addListener(showMountWindow);
