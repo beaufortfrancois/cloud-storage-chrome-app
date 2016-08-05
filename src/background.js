@@ -32,6 +32,28 @@ function request(url, successCallback, errorCallback) {
   }, errorCallback);
 }
 
+// Helper function to sanitize metadata.
+function sanitizeMetadata(object, options) {
+  function sanitize(metadata) {
+    metadata.modificationTime = new Date(metadata.modificationTime);
+    if (options) {
+      if (!options.name) { delete metadata.name; }
+      if (!options.thumbnail) { delete(metadata.thumbnail); }
+      if (!options.size) { delete(metadata.size); }
+      if (!options.mimeType) { delete(metadata.mimeType); }
+      if (!options.modificationTime) { delete(metadata.modificationTime); }
+      if (!options.isDirectory) { delete(metadata.isDirectory); }
+    }
+    return metadata;
+  }
+  if (object instanceof Array) {
+    return object.map(sanitize)
+  } else {
+    return sanitize(object);
+  }
+
+}
+
 // Get cloud storage object media link URL.
 function getObjectMediaLink(bucket, object, successCallback, errorCallback) {
   var url = 'https://www.googleapis.com/storage/v1/b/' + bucket +
@@ -53,12 +75,8 @@ function onGetMetadataRequested(options, onSuccess, onError) {
 
   if (options.entryPath === '/') {
     // Return static root entry.
-    onSuccess({
-      'isDirectory': true,
-      'name': '', // Must be empty string.
-      'size': 0,
-      'modificationTime': new Date()
-    });
+    var root = {isDirectory: true, name: '', size: 0, modificationTime: new Date()};
+    onSuccess(sanitizeMetadata(root, options));
     return;
   }
 
@@ -94,7 +112,7 @@ function onGetMetadataRequested(options, onSuccess, onError) {
       };
     }
     if (entry) {
-      onSuccess(entry);
+      onSuccess(sanitizeMetadata(entry, options));
     } else {
       onError('NOT_FOUND');
     }
@@ -116,6 +134,10 @@ function onReadDirectoryRequested(options, onSuccess, onError) {
     if (response.items) {
       // Add all files in this directory.
       for (var item of response.items) {
+        if (item.name === prefix) {
+          // Skip folder...
+          continue;
+        }
         entries.push({
           'isDirectory': false,
           'name': item.name.substr(prefix.length),
@@ -136,7 +158,7 @@ function onReadDirectoryRequested(options, onSuccess, onError) {
         });
       }
     }
-    onSuccess(entries, false /* last call */);
+    onSuccess(sanitizeMetadata(entries, options), false /* last call */);
   }, function() {
     onError('FAILED');
   });
